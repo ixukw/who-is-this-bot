@@ -24,7 +24,7 @@ client.on('message', message => {
     const guild_id = message.guild.id;
     const msgCh = message.channel;
     if (input_id!="placeholder") {
-        var username = message.guild.members.fetch(input_id).then((r)=>{return r.user.username;}).then(r=>{return r.user.username}).then(r=>{return r.user.username});
+        var username = message.guild.members.fetch(input_id).then().then(r=>{username = r.user.username;});
     }
     console.log(message.guild.members.fetch(input_id).finally());
     console.log("ASDASDASD");
@@ -70,12 +70,14 @@ client.on('message', message => {
     // Scan Server Command
     } else if (args[0]==='scan') { 
         msgCh.send("Scan Results:");
+        var count=0;
         const allMembers = message.guild.members.fetch();
         allMembers.then(function(r) {
             r.forEach(function (obj) {
                 db.collection(guild_id).doc(obj.user.id).get().then(function(doc){
                     if (!doc.exists) {
-                        msgCh.send(`\`${obj.user.username}\` (\`${obj.user.id}\`) does not have an entry.`);
+                        count++;
+                        msgCh.send(`${count}) \`${obj.user.username}\` (\`${obj.user.id}\`) does not have an entry.`);
                     }
                 }).catch((e) => { errorOutput(message, e); });
             });
