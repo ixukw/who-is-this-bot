@@ -1,0 +1,16 @@
+{
+  "name": "who-is-this-bot",
+  "version": "1.0.0",
+  "description": "A bot that replaces #bulletin-board",
+  "main": "index.js",
+  "dependencies": {
+    "discord.js": "^12.2.0",
+    "firebase-admin": "^8.12.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
