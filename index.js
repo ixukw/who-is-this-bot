@@ -1,8 +1,11 @@
+// Construction
 const Discord = require('discord.js');
 const client = new Discord.Client();
-const {prefix, token, user_id_len} = require('./config.json');
+const {prefix, token, user_id_len, pastebinKey} = require('./config.json');
 const firebaseAdmin = require("firebase-admin");
 const firebase = require("./who-is-this-bot-firebase-adminsdk-sy8hd-fd70878d2e.json");
+const PastebinAPI = require('pastebin-js');
+const pastebin = new PastebinAPI(pastebinKey);
 
 // Firebase & Discord Initialization
 firebaseAdmin.initializeApp({
@@ -10,32 +13,32 @@ firebaseAdmin.initializeApp({
 });
 const db = firebaseAdmin.firestore();
 client.once('ready', () => {
-	console.log('Ready!');
+	console.log('Ready.');
 });
 client.login(token);
 
 client.on('message', message => {
     if (!message.content.startsWith(prefix) || message.author.bot) return;
-
-    // constants
+    const msgCh = message.channel;
     const args = message.content.slice(prefix.length).split(' ');
-    if (args.length<1) return;
+    if (args.length<1) return; // Filter out input "!" with no args.
+    if (args.indexOf('')!=-1) return msgCh.send("Double space detected, please re-input with single space.");
+    console.log(args);
     const input_id = parseMentionInput(args[1]);
     const guild_id = message.guild.id;
-    const msgCh = message.channel;
+    
     if (input_id!="placeholder") {
-        var username = message.guild.members.fetch(input_id).then().then(r=>{username = r.user.username;});
+        var username = message.guild.members.cache.get(input_id).user.username;
     }
-    console.log(message.guild.members.fetch(input_id).finally());
-    console.log("ASDASDASD");
-    console.log(username);
+    
     // Who Is This User Command
     if (args[0]==='whois') { 
+        if (args.length<2) return msgCh.send("Invalid input.");
         checkServerExists(message, guild_id);
         console.log(`Searching for ${input_id} in server ${guild_id}.`);
         db.collection(guild_id).doc(input_id).get().then(function(doc) {
             if (doc.exists) {
-                return msgCh.send(`${username} (\`${input_id}\`) is \`${doc.data().name}\`.`);
+                return message.reply(`\`${username}\` (\`${input_id}\`) is \`${doc.data().name}\`.`);
             } else {
                 promptAddUser(message, input_id, guild_id, "placeholder", username);
             }
@@ -48,10 +51,11 @@ client.on('message', message => {
         const name=parseName(args);
         db.collection(guild_id).doc(input_id).get().then(function (doc) {
             if (doc.exists) {
+                var oldName = doc.data().name;
                 db.collection(guild_id).doc(input_id).set({
                     name: name
                 }, { merge: true }).catch((e) => { errorOutput(message, e); });
-                return msgCh.send(`Name updated to \`${name}\` for user \`${username}\` (\`${input_id}\`)`);
+                return msgCh.send(`Name updated to \`${name}\` for user \`${username}\` (\`${input_id}\`). Previously: \`${oldName}\``);
             } else {
                 promptAddUser(message, input_id, guild_id, name, username);
             }
@@ -59,11 +63,12 @@ client.on('message', message => {
 
     // Delete User Command
     } else if (args[0]==='delete') { 
+        if (args.length<2) return msgCh.send("Invalid input.");
         const filter = m => m.author.id = message.author.id;
-        msgCh.send(`Are you sure you wish to delete data for user ${username} (\`${input_id}\`) in this particular server? Type \`${input_id}\` to confirm. (Timeout 30s)`).then(() => {
+        msgCh.send(`Are you sure you wish to delete data for user \`${username}\` (\`${input_id}\`) in this particular server? Type \`${input_id}\` to confirm. (Timeout 30s)`).then(() => {
             msgCh.awaitMessages(filter, {max:1, time: 30000, errors: ['time']}).then(collected=>{
                 db.collection(guild_id).doc(input_id).delete();
-                return msgCh.send(`Deleted data for user ${username} (\`${input_id}\`).`);
+                return msgCh.send(`Deleted data for user \`${username}\` (\`${input_id}\`).`);
             }).catch((e) => { errorOutput(message, e); });
         });
 
@@ -72,21 +77,32 @@ client.on('message', message => {
         msgCh.send("Scan Results:");
         var count=0;
         const allMembers = message.guild.members.fetch();
+        var promises = [];
         allMembers.then(function(r) {
-            r.forEach(function (obj) {
-                db.collection(guild_id).doc(obj.user.id).get().then(function(doc){
-                    if (!doc.exists) {
-                        count++;
-                        msgCh.send(`${count}) \`${obj.user.username}\` (\`${obj.user.id}\`) does not have an entry.`);
-                    }
-                }).catch((e) => { errorOutput(message, e); });
+            setTimeout(()=> {
+                r.forEach(function (obj) {
+                    promises.push(obj.user.id);
+                    /*db.collection(guild_id).doc(obj.user.id).get().then(function(doc){
+                        if (!doc.exists) {
+                            count++;
+                            return `"${obj.user.username}" "${obj.user.id}" ""\n`;
+                            //msgCh.send(`\`${count}\` . \`${obj.user.username}\` (\`${obj.user.id}\`) does not have an entry.`);
+                        }
+                    }).catch((e) => { errorOutput(message, e); });*/
+                }, 5000);
             });
+            
         });
         
+        //pastebin.createPaste(output, `Unregistered for ${message.guild} (${message.guild.id}), enter names in last empty quote for each.`, null, 1, "N").then(function(d) {
+        //    console.log(`Created paste with ID ${d}`);
+        //    return message.channel.send(`Link: ${d}`);
+        //}).catch((e)=>{ errorOutput(message, e); }); 
+        console.log(promises);
+               
     // Add User Command
     } else if (args[0]==='add') {
         if (args.length<3) return msgCh.send("Invalid Input.");
-        console.log(username);
         addUser(message, parseMentionInput(args[1]), parseName(args), username);
         msgCh.send(`Added user \`${username}\` (\`${input_id}\`) with name \`${parseName(args)}\`.`);
 
@@ -108,9 +124,9 @@ client.on('message', message => {
 // Adds a user without awaitReaction
 function addUser(message, id, name, username) {
     console.log(`Creating entry for user ${username} (ID ${id}), name ${name}`);
-    //db.collection(message.guild.id).doc(id).set({
-    //    name: name
-    //}, { merge: true });
+    db.collection(message.guild.id).doc(id).set({
+        name: name
+    }, { merge: true });
     
 }
 
@@ -158,7 +174,7 @@ function reactionFilter(message) {
 
 // Creates a new user entry in the database and prompts user.
 function promptAddUser(message, add_id, server_id, name, username) {
-    message.channel.send(`User not found. Create an entry for user ${username} (\`${add_id}\`)? React Y/N. (Timeout 10s)`).then(function(msg) {
+    message.channel.send(`User not found. Create an entry for user \`${username}\` (\`${add_id}\`)? React Y/N. (Timeout 10s)`).then(function(msg) {
         addReactions(msg);
         const filter = reactionFilter(message);
         msg.awaitReactions(filter, {max: 1, time: 10000, errors: ['time']}).then(collected=>{
@@ -168,11 +184,11 @@ function promptAddUser(message, add_id, server_id, name, username) {
                     const filter = m => m.author.id = message.author.id;
                     message.channel.send("Enter the name for this user:").then(() => {
                         message.channel.awaitMessages(filter, {max:1, time: 30000, errors: ['time']}).then(collected=>{
-                            console.log(`Creating entry for user \`${add_id}\`, name ${collected.first()}`);
+                            console.log(`Creating entry for user ${add_id}, name ${collected.first()}`);
                             db.collection(server_id).doc(add_id).set({
                                 name: collected.first().content 
                             }, { merge: true });
-                            message.channel.send(`Added user ${username} (\`${add_id}\`) to the database with name \`${collected.first().content}\`.`);
+                            message.channel.send(`Added user \`${username}\` (\`${add_id}\`) to the database with name \`${collected.first().content}\`.`);
                         }).catch((e) => { errorOutput(message, e); });
                     });
                 } else {
@@ -192,7 +208,7 @@ function promptAddUser(message, add_id, server_id, name, username) {
 function checkServerExists(message, server_id) {
     db.collection(server_id).doc("placeholder").get().then(doc => {
         if (!doc.exists) {
-            return message.channel.send(`Unrecognized Server. Create an entry for this server (\`${server_id}\`)? React Y/N with timeout 10s. \n**Please complete this step before adding users.**`).then(function(msg) {
+            return message.channel.send(`Unrecognized Server. Create an entry for this server \`${message.guild}\` (\`${server_id}\`)? React Y/N with timeout 10s. \n**Please complete this step before adding users.**`).then(function(msg) {
                 addReactions(msg);
                 const filter = reactionFilter(message);
                 msg.awaitReactions(filter, {max: 1, time: 10000, errors: ['time']}).then(collected=>{
