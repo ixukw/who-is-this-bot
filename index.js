@@ -4,8 +4,11 @@ const client = new Discord.Client();
 const {prefix, token, user_id_len, pastebinKey} = require('./config.json');
 const firebaseAdmin = require("firebase-admin");
 const firebase = require("./who-is-this-bot-firebase-adminsdk-sy8hd-fd70878d2e.json");
-const PastebinAPI = require('pastebin-js');
-const pastebin = new PastebinAPI(pastebinKey);
+//const PastebinAPI = require('pastebin-js');
+//const pastebin = new PastebinAPI(pastebinKey);
+const fs = require('fs').promises;
+const hastebin = require('hastebin.js');
+const haste = new hastebin();
 
 // Firebase & Discord Initialization
 firebaseAdmin.initializeApp({
@@ -74,31 +77,23 @@ client.on('message', message => {
 
     // Scan Server Command
     } else if (args[0]==='scan') { 
-        msgCh.send("Scan Results:");
-        var count=0;
         const allMembers = message.guild.members.fetch();
-        var promises = [];
-        allMembers.then(function(r) {
-            setTimeout(()=> {
-                r.forEach(function (obj) {
-                    promises.push(obj.user.id);
-                    /*db.collection(guild_id).doc(obj.user.id).get().then(function(doc){
-                        if (!doc.exists) {
-                            count++;
-                            return `"${obj.user.username}" "${obj.user.id}" ""\n`;
-                            //msgCh.send(`\`${count}\` . \`${obj.user.username}\` (\`${obj.user.id}\`) does not have an entry.`);
-                        }
-                    }).catch((e) => { errorOutput(message, e); });*/
-                }, 5000);
-            });
-            
-        });
-        
-        //pastebin.createPaste(output, `Unregistered for ${message.guild} (${message.guild.id}), enter names in last empty quote for each.`, null, 1, "N").then(function(d) {
-        //    console.log(`Created paste with ID ${d}`);
-        //    return message.channel.send(`Link: ${d}`);
-        //}).catch((e)=>{ errorOutput(message, e); }); 
-        console.log(promises);
+        async function wrapper() {
+            var test=`Unregistered Users Scan Output\n${message.guild} (${message.guild.id})\n"ID"                \t"USERNAME"\t\t"NAME"`;
+            var test1 = await allMembers.then((r) => {
+                            r.forEach((obj) => {
+                                test+=`"${obj.user.id}"\t"${obj.user.username}" \n`;
+                                db.collection(guild_id).doc(obj.user.id).get().then(function(doc){
+                                    if (!doc.exists) {
+                                        test+=`\n"${obj.user.id}"\t"${obj.user.username}" `;
+                                    }
+                                }).catch((e) => { errorOutput(message, e); });
+                            });
+                        }).catch((e)=>{ console.log(e);});;
+            const link = haste.post(test).then(link => msgCh.send(`Use the following link to receive output: ${link}`));
+        }
+        wrapper();
+        Promise.resolve(allMembers);
                
     // Add User Command
     } else if (args[0]==='add') {
@@ -109,13 +104,14 @@ client.on('message', message => {
     // Help Command
     } else if (args[0]==='help') { 
         return msgCh.send(
-            "Commands:"+
-            "\n**!whois [user id]** : requires a user id and returns the name of the user if it exists. Will prompt creation of user in database if such user does not exist. "+
-            "\n**!help** : Displays this help menu."+
-            "\n**!scan** : Scans the server for unregistered users. Note: User display order changes per use of this command."+
-            "\n**!delete [user id]** : Deletes a specified user from the database."+
-            "\n**!update [user id] [name]** : Updates a name for a specified user."+
-            "\n**!add [user id] [name]** : Adds the specified user with specified name to the database for this particular server."+
+            "Commands:"+ // please make this aloop later
+            "\n**^whois [user id]**:\n> Requires a user id and returns the name of the user if it exists. Will prompt creation of user in database if such user does not exist. "+
+            "\n**^help**:\n> Displays this help menu."+
+            "\n**^scan**:\n> Scans the server for unregistered users and exports the information in the form of a hastebin. Edit this hastebin to include names and use import to import the data."+
+            "\n**^delete [user id]**:\n> Deletes a specified user from the database."+
+            "\n**^update [user id] [name]**:\n> Updates a name for a specified user."+
+            "\n**^add [user id] [name]**:\n> Adds the specified user with specified name to the database for this particular server. Will merge data if user already exists."+
+            "\n**^import [link]**:\n> Imports names for users based on the format given by \`^scan\`."+
             ""
         );
     }
