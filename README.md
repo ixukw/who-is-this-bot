@@ -10,5 +10,6 @@ Requires:
 - Discord.js v12.
 - npm i firebase-admin
 - npm i hastebin.js
+
 Requires a config.json with Discord Authentication Token and a Firebase private key json file.
 (Obviously requires Firebase Free Tier)
