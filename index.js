@@ -27,14 +27,20 @@ client.on('message', message => {
     console.log(args);
     const input_id = parseMentionInput(args[1]);
     const guild_id = message.guild.id;
-    
+    var username="placeholder";
     if (input_id!="placeholder") {
-        var username = message.guild.members.cache.get(input_id).user.username;
+        try {
+            username = message.guild.members.cache.get(input_id).user.username;
+        } catch (e) {
+            console.log('SAFE ERROR: '+e);
+            username = "placeholder";
+        }
     }
     
     // Who Is This User Command
     if (args[0]==='whois') { 
-        if (args.length<2) return msgCh.send("Invalid input.");
+        if (args.length<2) return msgCh.send("Invalid Input.");
+        if (username==='placeholder' || input_id === 'placeholder') return msgCh.send("Invalid Input.");
         checkServerExists(message, guild_id);
         console.log(`Searching for ${input_id} in server ${guild_id}.`);
         db.collection(guild_id).doc(input_id).get().then(function(doc) {
@@ -74,25 +80,33 @@ client.on('message', message => {
         });
 
     // Scan Server Command
+    var ids;
     } else if (args[0]==='scan') { 
         const allMembers = message.guild.members.fetch();
         async function wrapper() {
             var test=`Unregistered Users Scan Output\n${message.guild} (${message.guild.id})\n"ID"                \t"USERNAME"\t\t"NAME"`;
-            var test1 = await allMembers.then((r) => {
-                            r.forEach((obj) => {
-                                test+=`"${obj.user.id}"\t"${obj.user.username}" \n`;
-                                db.collection(guild_id).doc(obj.user.id).get().then(function(doc){
-                                    if (!doc.exists) {
-                                        test+=`\n"${obj.user.id}"\t"${obj.user.username}" `;
-                                    }
-                                }).catch((e) => { errorOutput(message, e); });
-                            });
-                        }).catch((e)=>{ console.log(e);});;
-            const link = haste.post(test).then(link => msgCh.send(`Use the following link to receive output: ${link}`));
+            var ref = await db.collection(guild_id).get();
+            var temp = [];
+            for(const doc of ref.docs) {
+                temp.push(doc.id);
+            }
+            await allMembers.then((r) => {
+                r.forEach((obj) => {
+                    async function checkData() {
+                        if (temp.indexOf(obj.user.id)==-1) {
+                            test+=`\n"${obj.user.id}"\t"${obj.user.username}" `;
+                        }
+                    }
+                    try {
+                        checkData();
+                    } catch (e) { console.log(e); }
+                });
+            }).catch((e)=>{ console.log(e);});
+            const link = await haste.post(test).then(link => msgCh.send(`Use the following link to receive output: ${link}`));
         }
         wrapper();
         Promise.resolve(allMembers);
-               
+
     // Add User Command
     } else if (args[0]==='add') {
         if (args.length<3) return msgCh.send("Invalid Input.");
@@ -103,7 +117,7 @@ client.on('message', message => {
     } else if (args[0]==='help') { 
         return msgCh.send(
             "Commands:"+ // please make this aloop later
-            "\n**^whois [user id]**:\n> Requires a user id and returns the name of the user if it exists. Will prompt creation of user in database if such user does not exist. "+
+            "\n**^whois [user id]**:\n> Requires a user id and returns the name of the user if it exists. Will prompt creation of user in database if such user does not exist. To avoid tagging the user, use the COPY ID feature and paste the ID instead of @mention."+
             "\n**^help**:\n> Displays this help menu."+
             "\n**^scan**:\n> Scans the server for unregistered users and exports the information in the form of a hastebin. Edit this hastebin to include names and use import to import the data."+
             "\n**^delete [user id]**:\n> Deletes a specified user from the database."+
