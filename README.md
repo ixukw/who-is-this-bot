@@ -14,3 +14,6 @@ Requires a config.json with specified data in construction section and a Firebas
 
 ## Known Issues
 - Excessively mentions people.
+
+
+Run with `node index.js` inside the root of the project.
